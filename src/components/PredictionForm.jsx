@@ -5,6 +5,8 @@ export default function PredictionForm() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [customApiUrl, setCustomApiUrl] = useState(import.meta.env.VITE_API_URL || '');
+  const [showApiSettings, setShowApiSettings] = useState(false);
 
   // ML Model constants from trained Logistic_model.pkl
   // coef: 1.12160441, intercept: -6.10225618 (Threshold ~ 5.44 hours)
@@ -18,6 +20,13 @@ export default function PredictionForm() {
       probability: (probability * 100).toFixed(1),
       source: 'Client ML Engine'
     };
+  };
+
+  const getEffectiveApiUrl = () => {
+    if (customApiUrl && customApiUrl.trim()) {
+      return customApiUrl.trim().replace(/\/+$/, '');
+    }
+    return 'http://localhost:8000';
   };
 
   const handleSubmit = async (e) => {
@@ -37,12 +46,15 @@ export default function PredictionForm() {
 
     setLoading(true);
 
-    try {
-      // First try calling the FastAPI backend on port 8000
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const baseUrl = getEffectiveApiUrl();
+    const endpoint = `${baseUrl}/predict`;
 
-      const response = await fetch('http://localhost:8000/predict', {
+    try {
+      // Attempt to call the FastAPI backend (/predict)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -54,21 +66,23 @@ export default function PredictionForm() {
       clearTimeout(timeoutId);
 
       if (response.ok) {
-        const data = await response.json();
-        // data.predicted_Result is 1 (Pass) or 0 (Fail)
-        const isPass = Math.round(data.predicted_Result) === 1;
-        const local = calculateLocalPrediction(hours);
-        setResult({
-          status: isPass ? 'Pass' : 'Fail',
-          code: isPass ? 1 : 0,
-          probability: local.probability,
-          source: 'FastAPI Server (Live Model)'
-        });
-      } else {
-        throw new Error('Backend response error');
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const data = await response.json();
+          const isPass = Math.round(data.predicted_Result) === 1;
+          const local = calculateLocalPrediction(hours);
+          setResult({
+            status: isPass ? 'Pass' : 'Fail',
+            code: isPass ? 1 : 0,
+            probability: local.probability,
+            source: `Live FastAPI Backend (${new URL(baseUrl).hostname})`
+          });
+          return;
+        }
       }
+      throw new Error('Backend returned non-JSON or error');
     } catch {
-      // If FastAPI backend is not running, compute accurately via trained ML weights
+      // If backend is sleeping, not deployed, or offline, compute via trained ML model
       const local = calculateLocalPrediction(hours);
       setResult(local);
     } finally {
@@ -142,6 +156,58 @@ export default function PredictionForm() {
               {hr} hrs
             </button>
           ))}
+        </div>
+
+        {/* Backend API Configuration */}
+        <div style={{ marginTop: '-0.25rem', marginBottom: '0.25rem' }}>
+          <button
+            type="button"
+            onClick={() => setShowApiSettings(!showApiSettings)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-dim)',
+              fontSize: '0.78rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              cursor: 'pointer',
+              padding: '0.2rem 0'
+            }}
+          >
+            <span>🔗 Backend Server:</span>
+            <code style={{ color: 'var(--accent-cyan)', background: 'rgba(255,255,255,0.05)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+              {getEffectiveApiUrl()}
+            </code>
+            <span style={{ fontSize: '0.7rem' }}>{showApiSettings ? '▲' : '▼ (Change)'}</span>
+          </button>
+
+          {showApiSettings && (
+            <div style={{ marginTop: '0.5rem', background: 'rgba(0, 0, 0, 0.35)', padding: '0.75rem 1rem', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
+              <label style={{ fontSize: '0.76rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                FastAPI Backend URL:
+              </label>
+              <input
+                type="text"
+                value={customApiUrl}
+                onChange={(e) => setCustomApiUrl(e.target.value)}
+                placeholder="e.g. https://your-backend-api.onrender.com or http://localhost:8000"
+                style={{
+                  width: '100%',
+                  padding: '0.55rem 0.75rem',
+                  fontSize: '0.85rem',
+                  background: 'rgba(13, 19, 33, 0.9)',
+                  border: '1.5px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  outline: 'none'
+                }}
+              />
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '0.35rem', display: 'block' }}>
+                Paste your deployed Render Web Service backend URL here or leave default for local server.
+              </span>
+            </div>
+          )}
         </div>
 
         {error && (
