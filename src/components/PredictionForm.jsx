@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const DEFAULT_API_URL = 'https://student-performance-predictor-evhi.onrender.com';
+const DEFAULT_API_URL = 'https://result1-cqn0.onrender.com';
 
 export default function PredictionForm() {
   const [studyHours, setStudyHours] = useState('');
