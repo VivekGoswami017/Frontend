@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 
+const DEFAULT_API_URL = 'https://student-performance-predictor-evhi.onrender.com';
+
 export default function PredictionForm() {
   const [studyHours, setStudyHours] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
-  const [customApiUrl, setCustomApiUrl] = useState(import.meta.env.VITE_API_URL || '');
+  const [customApiUrl, setCustomApiUrl] = useState(import.meta.env.VITE_API_URL || DEFAULT_API_URL);
   const [showApiSettings, setShowApiSettings] = useState(false);
 
   // ML Model constants from trained Logistic_model.pkl
@@ -26,7 +28,7 @@ export default function PredictionForm() {
     if (customApiUrl && customApiUrl.trim()) {
       return customApiUrl.trim().replace(/\/+$/, '');
     }
-    return 'http://localhost:8000';
+    return DEFAULT_API_URL;
   };
 
   const handleSubmit = async (e) => {
